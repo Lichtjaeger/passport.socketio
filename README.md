@@ -1,14 +1,14 @@
-[![Build Status](https://travis-ci.org/jfromaniello/passport.socketio.svg)](https://travis-ci.org/jfromaniello/passport.socketio)
+<!-- [![Build Status](https://travis-ci.org/jfromaniello/passport.socketio.svg)](https://travis-ci.org/jfromaniello/passport.socketio) -->
 
-# passport.socketio
+# koa-passport.socketio
 
-> Access [passport.js](http://passportjs.org) user information from a [socket.io](http://socket.io) connection.
+> Access [passport.js](http://passportjs.org) user information from a [socket.io](http://socket.io) connection in Koa.
 
 
 ## Installation
 
 ```
-npm install passport.socketio
+npm install koa-passport.socketio (todo: publish to npm)
 ```
 
 ## Example usage
@@ -17,30 +17,37 @@ npm install passport.socketio
 ```javascript
 
 // initialize our modules
-var io               = require("socket.io")(server),
-    sessionStore     = require('awesomeSessionStore'), // find a working session store (have a look at the readme)
-    passportSocketIo = require("passport.socketio");
 
-// With Socket.io < 1.0
-io.set('authorization', passportSocketIo.authorize({
-  cookieParser: express.cookieParser,
-  key:         'express.sid',       // the name of the cookie where express/connect stores its session_id
-  secret:      'session_secret',    // the session_secret to parse the cookie
-  store:       sessionStore,        // we NEED to use a sessionstore. no memorystore please
-  success:     onAuthorizeSuccess,  // *optional* callback on success - read more below
-  fail:        onAuthorizeFail,     // *optional* callback on fail/error - read more below
+import Koa           from 'koa';
+import IO            from 'koa-socket';
+import koaPassSockIo from 'koa-passport.socketio';
+import MongoStore    from 'koa-generic-session-mongo';
+
+const  app           = new Koa();
+const  io            = new IO();
+const  mongoStore    = new MongoStore();
+
+io.attach(app);
+io.use(koaPassSockIo.authorize({
+  key     : 'koa.sid',          // the name of the cookie where koa stores its session id
+  secret  : app.keys,           // the session_secret to parse the cookie
+  store   : mongoStore,         // we NEED to use a sessionstore. no memorystore please
+  success : onAuthorizeSuccess, // *optional* callback on success - read more below
+  fail    : onAuthorizeFail,    // *optional* callback on fail/error - read more below
 }));
 
-//With Socket.io >= 1.0
-io.use(passportSocketIo.authorize({
-  cookieParser: cookieParser,       // the same middleware you registrer in express
-  key:          'express.sid',       // the name of the cookie where express/connect stores its session_id
-  secret:       'session_secret',    // the session_secret to parse the cookie
-  store:        sessionStore,        // we NEED to use a sessionstore. no memorystore please
-  success:      onAuthorizeSuccess,  // *optional* callback on success - read more below
-  fail:         onAuthorizeFail,     // *optional* callback on fail/error - read more below
-}));
+// use convert for Koa 2:
+// io.use(convert(koaPassSockIo.authorize({…})));
 
+app.io.on('msg', ({ socket, data, user }) => {
+  log(`${user.name} received ${data}`);
+  socket.emit('ok');
+});
+```
+
+## Todo: docs below need to be updated for Koa related usage instead of express
+
+```
 function onAuthorizeSuccess(data, accept){
   console.log('successful connection to socket.io');
 
@@ -72,6 +79,7 @@ function onAuthorizeFail(data, message, error, accept){
   // see: http://socket.io/docs/client-api/#socket > error-object
 }
 ```
+
 
 ## passport.socketio - Options
 

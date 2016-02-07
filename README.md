@@ -1,215 +1,115 @@
 <!-- [![Build Status](https://travis-ci.org/jfromaniello/passport.socketio.svg)](https://travis-ci.org/jfromaniello/passport.socketio) -->
 
-# koa-passport.socketio
+# koa-socket-passport
 
-> Access [passport.js](http://passportjs.org) user information from a [socket.io](http://socket.io) connection in Koa.
+Koa 2 port of [passport.socketio].
+Access [passport.js] user information from a [socket.io] connection in Koa 2.
 
+> Note: Still a work in progress
 
 ## Installation
-
 ```
-npm install koa-passport.socketio (todo: publish to npm)
+npm install koa-socket-passport (todo: publish to npm)
 ```
 
 ## Example usage
-
-
 ```javascript
+import Koa           from 'koa' // Koa 2
 
-// initialize our modules
+import convert       from 'koa-convert'
+import bodyParser    from 'koa-bodyparser'
+import session       from 'koa-generic-session'
+import MongoStore    from 'koa-generic-session-mongo'
 
-import Koa           from 'koa';
-import IO            from 'koa-socket';
-import koaPassSockIo from 'koa-passport.socketio';
-import MongoStore    from 'koa-generic-session-mongo';
+import IO            from 'koa-socket'
+import passport      from 'koa-passport'
+import koaSocketPass from 'koa-socket-passport'
 
-const  app           = new Koa();
-const  io            = new IO();
-const  mongoStore    = new MongoStore();
+const app   = new Koa();
+const io    = new IO();
+const store = new MongoStore();
 
 io.attach(app);
-io.use(koaPassSockIo.authorize({
-  key     : 'koa.sid',          // the name of the cookie where koa stores its session id
-  secret  : app.keys,           // the session_secret to parse the cookie
-  store   : mongoStore,         // we NEED to use a sessionstore. no memorystore please
-  success : onAuthorizeSuccess, // *optional* callback on success - read more below
-  fail    : onAuthorizeFail,    // *optional* callback on fail/error - read more below
+io.use(koaSocketPass.authorize({
+  key     : 'koa.sid',
+  secret  : app.keys,
+  store   : store,
+  success : onAuthorizeSuccess,
+  fail    : onAuthorizeFail,
 }));
 
-// use convert for Koa 2:
-// io.use(convert(koaPassSockIo.authorize({…})));
+io.on('connection', function(ctx) {
+  var socket = ctx.socket;
+  var user = ctx.user;
+});
 
-app.io.on('msg', ({ socket, data, user }) => {
+io.on('msg', ({ data, user, socket }) => {
   log(`${user.name} received ${data}`);
   socket.emit('ok');
 });
 ```
 
-## Todo: docs below need to be updated for Koa related usage instead of express
-
-```
-function onAuthorizeSuccess(data, accept){
-  console.log('successful connection to socket.io');
-
-  // The accept-callback still allows us to decide whether to
-  // accept the connection or not.
-  accept(null, true);
-
-  // OR
-
-  // If you use socket.io@1.X the callback looks different
-  accept();
-}
-
-function onAuthorizeFail(data, message, error, accept){
-  if(error)
-    throw new Error(message);
-  console.log('failed connection to socket.io:', message);
-
-  // We use this callback to log all of our failed connections.
-  accept(null, false);
-
-  // OR
-
-  // If you use socket.io@1.X the callback looks different
-  // If you don't want to accept the connection
-  if(error)
-    accept(new Error(message));
-  // this error will be sent to the user as a special error-package
-  // see: http://socket.io/docs/client-api/#socket > error-object
-}
-```
-
-
-## passport.socketio - Options
+## Options
 
 ### `store` [function] **required**:
-*Always* provide one. If you don't know what sessionStore to use, have a look at [this list](https://github.com/senchalabs/connect/wiki#session-stores).
-Also be sure to use the same sessionStore or at least a connection to *the same collection/table/whatever*. And don't forget your `express.session()` middleware:
-`app.use(express.session({ store: awesomeSessionStore }));`
-For further info about this middleware see [the official documentation](http://www.senchalabs.org/connect/session.html#session).
-
-You can also check the simple example below using a redis store.
-
-```javascript
-//in your app.js
-var sessionStore = new redisStore();
-
-app.use(session({
-  key: 'express.sid',
-  store: sessionStore,
-  secret: 'keyboard cat'
-}));
-
-//in your passport.socketio setup
-//With Socket.io >= 1.0 (you will have the same setup for Socket.io <1)
-io.use(passportSocketIo.authorize({
-  cookieParser: require('cookie-parser'), //optional your cookie-parser middleware function. Defaults to require('cookie-parser')
-  key:          'express.sid',       //make sure is the same as in your session settings in app.js
-  secret:       'keyboard cat',      //make sure is the same as in your session settings in app.js
-  store:        sessionStore,        //you need to use the same sessionStore you defined in the app.use(session({... in app.js
-  success:      onAuthorizeSuccess,  // *optional* callback on success
-  fail:         onAuthorizeFail,     // *optional* callback on fail/error
-}));
-
-```
-
-### `cookieParser` [function] **optional**:
-Optional cookieParser from express. Express 3 is `express.cookieParser` in Express 4 `require('cookie-parser')`.
-
-Defaults to `require('cookie-parser')`.
+One of [koa-generic-session]. Be sure to use the same store, secret, and keys as in Koa session.
 
 ### `key` [string] **optional**:
-Defaults to `'connect.sid'`. But you're always better of to be sure and set your own key. Don't forget to also change it in your `express.session()`:
-`app.use(express.session({ key: 'your.sid-key' }));`
+Defaults to `'koa.sid'`.
 
 ### `secret` [string] **optional**:
-As with `key`, also the secret you provide is optional. *But:* be sure to have one. That's always safer. You can set it like the key:
-`app.use(express.session({ secret: 'pinkie ate my cupcakes!' }));`
+Defaults to `null`.
 
 ### `passport` [function] **optional**:
-Defaults to `require('passport')`. If you want, you can provide your own instance of passport for whatever reason.
+Defaults to `require('koa-passport')`.
 
 ### `success` [function] **optional**:
-Callback which will be called everytime a *authorized* user successfuly connects to your socket.io instance. **Always** be sure to accept/reject the connection.
-For that, there are two parameters: `function(data[object], accept[function])`. `data` contains all the user-information from passport.
-The second parameter is for accepting/rejecting connections. Use it like this if you use socket.io under 1.0:
+Callback which will be called everytime a *authorized* user successfuly connects to your socket.io instance.
+It takes one parameter - `ksp` which contains user-information from passport, as well as koaSocketPassport related data.
+You can throw an error here to reject the connection.
+You can also return a promise that migh get rejected.
 ```javascript
-// accept connection
-accept(null, true);
-
-// reject connection (for whatever reason)
-accept(null, false);
-
-
-```
-
-And like this if you use the newest version of socket.io@1.X
-```javascript
-// accept connection
-accept();
-
-// reject connection (for whatever reason)
-accept(new Error('optional reason'));
-
-
+function onAuthorizeSuccess(ksp) {
+  var user = ksp.user;
+  var session = ksp.session;
+  if (user.banned) throw new Error('sorry you have been banned');
+}
 ```
 
 
 ### `fail` [function] **optional**:
-The name of this callback may be a little confusing. While it is called when a not-authorized-user connects, it is also called when there's a error.
-For debugging reasons you are provided with two additional parameters `function(data[object], message[string], error[bool], accept[function])`: (socket.io @ < 1.X)
+Callback which will be called when something goes wrong or the user couldn't be authorized.
+It takes two parameter - `err)` which contains the error, and has a `err.critical` property which if `true` means something went wrong, and if `fale` it just means that user is not authorized. `ksp` contains the same info as described above. In case of critical error you can tell by how much info was gathered inside `ksp` (cookie? sid? session?) before it failed.
+You can throw an error (or return a promise that might fail) here to reject the connection.
+Or you can return normally and the connection won't be rejected, but there might not be a `.user` property on the socket. (which if you want you can just add another middleware to take care of)
+By default, it checks if error was critical and if so it throws an error.
 ```javascript
-/* ... */
-function onAuthorizeFail(data, message, error, accept){
-  // error indicates whether the fail is due to an error or just a unauthorized client
-  if(error){
-    throw new Error(message);
-  } else {
-    console.log(message);
-    // the same accept-method as above in the success-callback
-    accept(null, false);
+function onAuthorizeFail(err, ksp){
+  if (err.critical)
+    throw error('Socket Authorization Failed. ', err.critical, err);
+}
+```
+
+## `socket.user`
+If the user was found and authorized, a `user` property will be available on socket or ctx
+```
+io.on('connection', function(socket){
+  if(socket.user) {
+    // ...
   }
-}
-
-// or
-// This function accepts every client unless there's an error
-function onAuthorizeFail(data, message, error, accept){
-  console.log(message);
-  accept(null, !error);
-}
+})
 ```
-
-Socket.io@1.X:
-```javascript
-function onAuthorizeFail(data, message, error, accept){
-  // error indicates whether the fail is due to an error or just a unauthorized client
-  if(error)  throw new Error(message);
-  // send the (not-fatal) error-message to the client and deny the connection
-  return accept(new Error(message));
-}
-
-// or
-// This function accepts every client unless there's an critical error
-function onAuthorizeFail(data, message, error, accept){
-  if(error)  throw new Error(message);
-  return accept();
-}
+In koa-socket it'll be available as `ctx.user`
+```
+app.io.on('msg', ctx => {
+  if(ctx.user) {
+    // ...
+  }
+});
 ```
 
 
-You can use the `message` parameter for debugging/logging/etc uses.
-
-## `socket.handshake.user` (prior to v1)
-This property was removed in v1. See `socket.request.user`
-
-## `socket.request.user` (as of v1)
-This property is always available from inside a `io.on('connection')` handler. If the user is authorized via passport, you can access all the properties from there.
-**Plus** you have the `socket.request.user.logged_in` property which tells you whether the user is currently authorized or not.
-
-**Note:** This property was named socket.handshake.user prior to v1
-
-## Additional methods
+## Additional methods (todo: not ported yet, don't know if they still work)
 
 ### `passportSocketIo.filterSocketsByUser`
 This function gives you the ability to filter all connected sockets via a user property. Needs two parameters `function(io, function(user))`. Example:
@@ -253,3 +153,12 @@ npm test
 ## License
 Licensed under the MIT-License.
 2012-2013 José F. Romaniello.
+
+
+
+[passport.socketio]: https://github.com/jfromaniello/passport.socketio
+[passport.js]: http://passportjs.org
+[socket.io]: http://socket.io
+
+[koa-generic-session]: https://github.com/koajs/generic-session
+

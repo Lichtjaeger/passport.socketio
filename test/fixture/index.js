@@ -1,85 +1,99 @@
-var express = require('express');
-var connect   = require('connect');
-var passport  = require('passport');
+const http = require('http');
+const Koa = require('koa');
+const bodyParser = require('koa-bodyparser')
+const passport = require('koa-passport')
+const MemoryStore = require('koa-generic-session').MemoryStore;
+const SocketIo = require('socket.io');
+const convert = require('koa-convert');
+const session = require('koa-generic-session');
+const Router = require('koa-router');
+const extend = require('lodash/extend');
 
-var http = require('http');
-var xtend = require('xtend');
+const koaSocketPassport = require('../../lib');
 
-var cookieParser = require('cookie-parser');
-var bodyParser = require('body-parser');
-var session = require('express-session');
+const secret = 'asdasdsdas1312312';
+// const key = 'koa.sid';
+const store = new MemoryStore();
 
-var socketIo = require('socket.io'),
-    passportSocketIo = require('../../lib');
-
-var sessionStore    = new connect.session.MemoryStore(),
-    sessionSecret  = 'asdasdsdas1312312',
-    sessionKey    = 'test-session-key',
-    sessionOptions = {
-      store:  sessionStore,
-      key:    sessionKey,
-      secret: sessionSecret,
-      saveUninitialized: true,
-      resave: true
-    };
+var defaults = {
+  store: store,
+  // key: key,
+  secret: secret,
+  saveUninitialized: true,
+  resave: true
+};
 
 var server;
 
-require('./setupPassport');
+const setupPassport = require('./setup-passport');
 
-exports.start = function (options, callback) {
+exports.start = function(options, callback) {
 
-  if(typeof options == 'function'){
+  if (typeof options == 'function') {
     callback = options;
     options = {};
   }
 
-  var app = express();
+  var app = new Koa();
 
-  (function(){
-    app.use(cookieParser());
-    app.use(bodyParser.urlencoded({extended: true}));
+  app.use(convert(bodyParser()));
+  app.keys = [secret];
+  app.use(convert(session(defaults)));
+  app.use(passport.initialize());
+  app.use(passport.session(defaults));
 
-    app.use(session(sessionOptions));
+  setupPassport(passport);
 
-    app.use(passport.initialize());
-    app.use(passport.session());
-  }).call(app);
-
-  app.post('/login', passport.authenticate('local', { successRedirect: '/',
-                                                      failureRedirect: '/login',
-                                                      failureFlash: true }));
-
-  app.get('/', function(req, res){
-    if(!req.user){
-      res.send(401);
-    }else{
-      res.json(req.user);
+  var router = new Router();
+  router.post('/login', passport.authenticate('local', {
+    successRedirect: '/',
+    failureRedirect: '/login',
+  }));
+  // router.post('/login', (ctx, next) => {
+  //   console.log('login?');
+  //   // clearTimeout(x);
+  //   var x = setTimeout(function() {
+  //     console.log('ctx.session:', ctx.session);
+  //   }, 1000);
+  //   passport.authenticate('local', {
+  //     successRedirect: '/',
+  //     failureRedirect: '/login',
+  //     failureFlash: true
+  //   })(ctx, function() {
+  //     console.log('hey');
+  //     next();
+  //   })
+  // });
+  router.get('/', (ctx, next) => {
+    if (!ctx.user) {
+      ctx.status = 401;
+    } else {
+      ctx.json(ctx.user);
     }
   });
+  app.use(router.routes());
 
-  server = http.createServer(app);
+  server = http.createServer(app.callback());
 
-  var sio = socketIo.listen(server);
-  sio.configure(function(){
-    var authorization = passportSocketIo.authorize(xtend(sessionOptions, options, {
-      cookieParser: cookieParser
-    }));
-
-    this.set('authorization', authorization);
-
-    this.set('log level', 0);
-
-  });
-
-  sio.sockets.on('echo', function (m) {
-    sio.sockets.emit('echo-response', m);
+  var io = SocketIo(server);
+  // io.use(function(socket, next) {
+  //   console.log('socket:', socket);
+  //   // next(new Error('handshake unauthorized'));
+  //   // console.log('even1');
+  //   next();
+  // });
+  io.use(koaSocketPassport.authorize(extend({}, defaults, options)));
+  // io.use(function() {
+  //   console.log('even2');
+  // });
+  io.sockets.on('echo', function(m) {
+    io.sockets.emit('echo-response', m);
   });
 
   server.listen(9000, callback);
 };
 
-exports.stop = function (callback) {
+exports.stop = function(callback) {
   server.close();
   callback();
 };

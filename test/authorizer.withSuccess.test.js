@@ -1,15 +1,17 @@
-var fixture = require('./fixture'),
-  request = require('request'),
-  setSocketIOHandshakeCookies = require('./fixture/setSocketIOHandshakeCookies');
+var fixture = require('./fixture');
+var request = require('request');
+var setSocketIOHandshakeCookies = require('./fixture/setSocketIOHandshakeCookies');
 
 var io = require('socket.io-client');
+
+var dummyUser = require('./dummy-user');
 
 describe('authorizer with success callback', function () {
 
   //stop the server
   afterEach(fixture.stop);
 
-  //start the server 
+  //start the server
   //create a new session for every test
   beforeEach(function(done){
     this.cookies = request.jar();
@@ -24,11 +26,11 @@ describe('authorizer with success callback', function () {
   });
 
 
-  it('should call the success function with accept', function (done){
+  it.only('should call the success function with accept', function (done){
     request.post({
       jar: this.cookies,
       url: 'http://localhost:9000/login',
-      form: {username: 'jose', password: 'Pa123'}
+      form: dummyUser,
     }, function(){
 
       io.connect('http://localhost:9000', {'force new connection':true});
@@ -36,11 +38,11 @@ describe('authorizer with success callback', function () {
 
         this.accept
           .should.be.instanceOf(Function);
-        
+
         done();
 
       }.bind(this), 300);
-    
+
     }.bind(this));
   });
 
@@ -63,7 +65,7 @@ describe('authorizer with success callback', function () {
         connected.should.be.false;
         done();
       }.bind(this), 300);
-    
+
     }.bind(this));
   });
 
@@ -91,7 +93,7 @@ describe('authorizer with success callback', function () {
         }, 200);
 
       }.bind(this), 200);
-    
+
     }.bind(this));
   });
 });

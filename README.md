@@ -3,18 +3,25 @@
 # koa-socket-passport
 
 Koa 2 port of [passport.socketio].
-Access [passport.js] user information from a [socket.io] connection in Koa 2.
+Access [passport.js] user from [socket.io] in Koa 2.
 
-> Note: Still a work in progress
+---
+
+>**Note**:
+Still a work in progress.
+Complete functionality of the original passport.socketio, like additional methods (filterSocketsByUser) and CORS related stuff still a todo. (PRs welcome!)
+
+---
+
 
 ## Installation
 ```
-npm install koa-socket-passport (todo: publish to npm)
+npm install koa-socket-passport
 ```
 
 ## Example usage
 ```javascript
-import Koa           from 'koa' // Koa 2
+import Koa           from 'koa' // Koa 2 (Koa 1.x *not* supported)
 
 import convert       from 'koa-convert'
 import bodyParser    from 'koa-bodyparser'
@@ -23,14 +30,14 @@ import MongoStore    from 'koa-generic-session-mongo'
 
 import IO            from 'koa-socket'
 import passport      from 'koa-passport'
-import koaSocketPass from 'koa-socket-passport'
+import { authorize } from 'koa-socket-passport'
 
 const app   = new Koa();
 const io    = new IO();
 const store = new MongoStore();
 
 io.attach(app);
-io.use(koaSocketPass.authorize({
+io.use(authorize({
   key     : 'koa.sid',
   secret  : app.keys,
   store   : store,
@@ -63,11 +70,22 @@ Defaults to `null`.
 ### `passport` [function] **optional**:
 Defaults to `require('koa-passport')`.
 
-### `success` [function] **optional**:
-Callback which will be called everytime a *authorized* user successfuly connects to your socket.io instance.
-It takes one parameter - `ksp` which contains user-information from passport, as well as koaSocketPassport related data.
-You can throw an error here to reject the connection.
-You can also return a promise that migh get rejected.
+---
+
+>**Note**:
+The following `success` and `fail` functions are slightly different from original passport.socketio. Instead of using callbacks to accept/reject the connection, they're now promise based to be more inline with Koa 2's promise/async-await approach.
+
+---
+
+### `success(ksp)` [function] **optional**:
+Called everytime an *authorized* user successfuly connects.
+
+Takes one parameter:
+
+  * `ksp` which contains user-information from passport, as well as koaSocketPassport related data. (like cookie, sid, session, etc)
+
+You can return normally here to accept the connection (default behavior), or throw an error (or return a promise that migh get rejected) to reject the connection.
+
 ```javascript
 function onAuthorizeSuccess(ksp) {
   var user = ksp.user;
@@ -76,13 +94,19 @@ function onAuthorizeSuccess(ksp) {
 }
 ```
 
+### `fail(err, ksp)` [function] **optional**:
+Called when something goes wrong or the user couldn't be authorized.
 
-### `fail` [function] **optional**:
-Callback which will be called when something goes wrong or the user couldn't be authorized.
-It takes two parameter - `err)` which contains the error, and has a `err.critical` property which if `true` means something went wrong, and if `fale` it just means that user is not authorized. `ksp` contains the same info as described above. In case of critical error you can tell by how much info was gathered inside `ksp` (cookie? sid? session?) before it failed.
-You can throw an error (or return a promise that might fail) here to reject the connection.
-Or you can return normally and the connection won't be rejected, but there might not be a `.user` property on the socket. (which if you want you can just add another middleware to take care of)
-By default, it checks if error was critical and if so it throws an error.
+Takes two parameters:
+
+  * `err` contains the error, and has an `err.critical` property which if `true` means that something went wrong, but if `false` it just means that user couldn't be authorized.
+
+  * `ksp` contains the same info as described above in the `success` function. In case of a critical error you can tell by how much info was gathered inside `ksp` where exactly did it fail.
+
+You can throw an error here (or return a promise that might fail) to reject the connection (default behavior), or you can return normally and the connection won't be rejected, although there may not be a `.user` property on the socket. (you can add another middleware and attach one yourself)
+
+By default, if the error was critical the connection is rejected, otherwise not.
+
 ```javascript
 function onAuthorizeFail(err, ksp){
   if (err.critical)

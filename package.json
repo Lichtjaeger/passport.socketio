@@ -1,7 +1,7 @@
 {
   "name": "koa-socket-passport",
-  "version": "0.0.1",
-  "description": "Access passport.js authenticated user information from socket.io in Koa",
+  "version": "0.0.2",
+  "description": "Access passport.js user from socket.io in Koa 2",
   "main": "lib/index.js",
   "keywords": [
     "socket",
@@ -14,12 +14,10 @@
     "name": "José F. Romaniello",
     "email": "jfromaniello@gmail.com"
   },
-  "contributors": [
-    {
-      "name": "laggingreflex",
-      "email": "laggingreflex@gmail.com"
-    }
-  ],
+  "contributors": [{
+    "name": "laggingreflex",
+    "email": "laggingreflex@gmail.com"
+  }],
   "repository": {
     "type": "git",
     "url": "https://github.com/laggingreflex/koa-socket-passport.git"
